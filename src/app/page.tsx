@@ -14,18 +14,25 @@ import {
 import questionsData from "./data.json";
 
 type Question = {
-  id: number;
+  id: string;
   subject: string;
   category: string;
-  difficulty: number;
+  difficulty: string;
   question: string;
   options: string[];
-  answer: number;
+  answer: string;
   hint: string;
   explanation: string;
 };
 
+const difficultyMap: Record<string, number> = {
+  Easy: 1,
+  Medium: 2,
+  Hard: 3,
+};
+
 const allQuestions: Question[] = questionsData as Question[];
+const subjects = Array.from(new Set(allQuestions.map((q) => q.subject)));
 const categories = Array.from(new Set(allQuestions.map((q) => q.category)));
 
 function ConfettiEffect() {
@@ -84,7 +91,8 @@ export default function ElsaQuizPage() {
 
   const currentQuestion = filteredQuestions[currentIndex];
 
-  const isCorrect = selectedOption === currentQuestion?.answer;
+  const answerIndex = currentQuestion?.options.indexOf(currentQuestion.answer) ?? -1;
+  const isCorrect = selectedOption === answerIndex;
 
   const handleSelect = useCallback(
     (optionIndex: number) => {
@@ -93,7 +101,7 @@ export default function ElsaQuizPage() {
       setShowResult(true);
       setAnsweredCount((c) => c + 1);
 
-      if (optionIndex === currentQuestion.answer) {
+      if (currentQuestion.options[optionIndex] === currentQuestion.answer) {
         setCorrectCount((c) => c + 1);
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 2500);
@@ -186,7 +194,7 @@ export default function ElsaQuizPage() {
   }
 
   const difficultyStars = Array.from(
-    { length: currentQuestion.difficulty },
+    { length: difficultyMap[currentQuestion.difficulty] ?? 2 },
     (_, i) => i
   );
 
@@ -296,7 +304,7 @@ export default function ElsaQuizPage() {
                 "border-2 border-gray-200 bg-gray-50 hover:border-purple-300 hover:bg-purple-50";
 
               if (showResult) {
-                if (idx === currentQuestion.answer) {
+                if (idx === answerIndex) {
                   optionStyle =
                     "border-2 border-green-400 bg-green-50 ring-2 ring-green-200";
                 } else if (idx === selectedOption && !isCorrect) {
@@ -319,7 +327,7 @@ export default function ElsaQuizPage() {
                     {String.fromCharCode(65 + idx)}
                   </span>
                   <span className="flex-1">{opt}</span>
-                  {showResult && idx === currentQuestion.answer && (
+                  {showResult && idx === answerIndex && (
                     <CheckCircle2
                       size={22}
                       className="shrink-0 text-green-500"
@@ -328,7 +336,7 @@ export default function ElsaQuizPage() {
                   {showResult &&
                     idx === selectedOption &&
                     !isCorrect &&
-                    idx !== currentQuestion.answer && (
+                    idx !== answerIndex && (
                       <XCircle size={22} className="shrink-0 text-red-500" />
                     )}
                 </button>
