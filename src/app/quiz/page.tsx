@@ -16,6 +16,10 @@ import {
   Check,
   Layers,
   Home,
+  ClipboardList,
+  ArrowUpCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import questionsData from "./data.json";
 
@@ -38,6 +42,11 @@ type SessionRecord = {
   totalQuestions: number;
   correctCount: number;
   accuracy: number;
+};
+
+type WrongAnswer = {
+  question: Question;
+  userAnswer: string;
 };
 
 const difficultyMap: Record<string, number> = {
@@ -143,6 +152,9 @@ function QuizContent() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
   const [sessionSaved, setSessionSaved] = useState(false);
+  const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const [showWrongDetails, setShowWrongDetails] = useState(false);
 
   const currentCategories = useMemo(
     () =>
@@ -184,25 +196,36 @@ function QuizContent() {
   );
 
   const handleStart = useCallback(() => {
-    const shuffled = shuffle(availableQuestions);
+    const shuffled = shuffle(availableQuestions.filter((q) => !doneIds.has(q.id)));
     const count =
       selectedCount === "all" ? shuffled.length : Math.min(selectedCount, shuffled.length);
-    setQuizQuestions(shuffled.slice(0, count));
+    const picked = shuffled.slice(0, count);
+    setQuizQuestions(picked);
+    setDoneIds((prev) => {
+      const next = new Set(prev);
+      picked.forEach((q) => next.add(q.id));
+      return next;
+    });
     setCurrentIndex(0);
     setSelectedOption(null);
     setShowHint(false);
     setShowResult(false);
     setCorrectCount(0);
     setAnsweredCount(0);
+    setWrongAnswers([]);
     setQuizFinished(false);
     setSessionSaved(false);
+    setShowWrongDetails(false);
     setQuizStarted(true);
-  }, [availableQuestions, selectedCount]);
+  }, [availableQuestions, selectedCount, doneIds]);
 
   const handleBackToStart = useCallback(() => {
     setQuizStarted(false);
     setQuizFinished(false);
     setSessionSaved(false);
+    setDoneIds(new Set());
+    setWrongAnswers([]);
+    setShowWrongDetails(false);
   }, []);
 
   const currentQuestion = quizQuestions[currentIndex];
@@ -219,6 +242,11 @@ function QuizContent() {
         setCorrectCount((c) => c + 1);
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 2500);
+      } else {
+        setWrongAnswers((prev) => [
+          ...prev,
+          { question: currentQuestion, userAnswer: currentQuestion.options[optionIndex] },
+        ]);
       }
     },
     [showResult, currentQuestion]
@@ -234,6 +262,63 @@ function QuizContent() {
     setShowHint(false);
     setShowResult(false);
   }, [currentIndex, quizQuestions.length]);
+
+  // Start a new round with specific questions (for adaptive modes)
+  const startAdaptiveRound = useCallback((questions: Question[]) => {
+    setDoneIds((prev) => {
+      const next = new Set(prev);
+      questions.forEach((q) => next.add(q.id));
+      return next;
+    });
+    setQuizQuestions(questions);
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setShowHint(false);
+    setShowResult(false);
+    setCorrectCount(0);
+    setAnsweredCount(0);
+    setWrongAnswers([]);
+    setQuizFinished(false);
+    setSessionSaved(false);
+    setShowWrongDetails(false);
+  }, []);
+
+  const handleWrongPractice = useCallback(() => {
+    const wrongCats = new Set(wrongAnswers.map((w) => w.question.category));
+    const pool = allQuestions.filter(
+      (q) => wrongCats.has(q.category) && !doneIds.has(q.id)
+    );
+    const picked = shuffle(pool).slice(0, 5);
+    if (picked.length === 0) {
+      alert("這些單元沒有更多新題目了！");
+      return;
+    }
+    startAdaptiveRound(picked);
+  }, [wrongAnswers, doneIds, startAdaptiveRound]);
+
+  const handleHarderPractice = useCallback(() => {
+    const wrongCats = new Set(wrongAnswers.map((w) => w.question.category));
+    const maxDiff = Math.max(...quizQuestions.map((q) => Number(q.difficulty) || 3));
+    // Try harder questions first
+    let pool = allQuestions.filter(
+      (q) =>
+        wrongCats.has(q.category) &&
+        !doneIds.has(q.id) &&
+        (Number(q.difficulty) || 3) > maxDiff
+    );
+    // If no harder, try same difficulty new questions
+    if (pool.length === 0) {
+      pool = allQuestions.filter(
+        (q) => wrongCats.has(q.category) && !doneIds.has(q.id)
+      );
+    }
+    const picked = shuffle(pool).slice(0, 5);
+    if (picked.length === 0) {
+      alert("這些單元沒有更多題目了！");
+      return;
+    }
+    startAdaptiveRound(picked);
+  }, [wrongAnswers, doneIds, quizQuestions, startAdaptiveRound]);
 
   // Save session when quiz finishes
   useEffect(() => {
@@ -409,29 +494,95 @@ function QuizContent() {
   // ==================== FINISHED ====================
   if (quizFinished) {
     const emoji = accuracy >= 80 ? "🏆" : accuracy >= 60 ? "⭐" : "💪";
+    const hasWrong = wrongAnswers.length > 0;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-amber-50 p-6">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
-          <div className="mb-4 text-6xl">{emoji}</div>
-          <h2 className="mb-2 text-3xl font-bold text-purple-700">練習完成！</h2>
-          <p className="mb-1 text-xl text-gray-600">
-            答對 <span className="font-bold text-green-600">{correctCount}</span> / {answeredCount} 題
-          </p>
-          <p className="mb-6 text-lg text-gray-500">正確率：{accuracy}%</p>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={handleBackToStart}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-8 py-3 text-lg font-semibold text-white shadow-lg transition hover:scale-105 hover:shadow-xl"
-            >
-              <RotateCcw size={20} />
-              再練習一次
-            </button>
+      <div className="flex min-h-screen flex-col items-center bg-gradient-to-br from-purple-100 via-pink-50 to-amber-50 p-6 pt-12">
+        <div className="w-full max-w-md space-y-4">
+          {/* Score card */}
+          <div className="rounded-3xl bg-white p-8 text-center shadow-2xl">
+            <div className="mb-4 text-6xl">{emoji}</div>
+            <h2 className="mb-2 text-3xl font-bold text-purple-700">練習完成！</h2>
+            <p className="mb-1 text-xl text-gray-600">
+              答對 <span className="font-bold text-green-600">{correctCount}</span> / {answeredCount} 題
+            </p>
+            <p className="text-lg text-gray-500">正確率：{accuracy}%</p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="space-y-3">
+            {/* Wrong details toggle */}
+            {hasWrong && (
+              <button
+                onClick={() => setShowWrongDetails((v) => !v)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-red-200 bg-white px-6 py-3 text-base font-semibold text-red-600 shadow transition hover:bg-red-50"
+              >
+                <ClipboardList size={20} />
+                查看錯題詳解（{wrongAnswers.length} 題）
+                {showWrongDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            )}
+
+            {/* Wrong details list */}
+            {showWrongDetails && (
+              <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                {wrongAnswers.map((w, i) => (
+                  <div key={i} className="rounded-xl bg-white p-4 shadow-sm">
+                    <p className="mb-2 text-sm font-medium text-gray-800">
+                      {i + 1}. {w.question.question}
+                    </p>
+                    <div className="mb-1 flex items-center gap-2 text-sm">
+                      <XCircle size={14} className="shrink-0 text-red-400" />
+                      <span className="text-red-500">你的答案：{w.userAnswer}</span>
+                    </div>
+                    <div className="mb-2 flex items-center gap-2 text-sm">
+                      <CheckCircle2 size={14} className="shrink-0 text-green-400" />
+                      <span className="text-green-600">正確答案：{w.question.answer}</span>
+                    </div>
+                    <p className="rounded-lg bg-blue-50 p-2 text-xs leading-relaxed text-blue-700">
+                      {w.question.explanation}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Wrong practice */}
+            {hasWrong && (
+              <button
+                onClick={handleWrongPractice}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-400 to-red-400 px-6 py-3.5 text-base font-bold text-white shadow-lg transition hover:scale-[1.02] hover:shadow-xl"
+              >
+                <RotateCcw size={20} />
+                錯題再練（同單元補強 5 題）
+              </button>
+            )}
+
+            {/* Harder practice */}
+            {hasWrong && (
+              <button
+                onClick={handleHarderPractice}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-400 to-indigo-500 px-6 py-3.5 text-base font-bold text-white shadow-lg transition hover:scale-[1.02] hover:shadow-xl"
+              >
+                <ArrowUpCircle size={20} />
+                提升難度（更高星級挑戰）
+              </button>
+            )}
+
+            {/* All correct message */}
+            {!hasWrong && (
+              <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-4 text-center">
+                <p className="text-lg font-bold text-green-600">全部答對！太厲害了！</p>
+                <p className="mt-1 text-sm text-green-500">可以回首頁挑戰其他單元</p>
+              </div>
+            )}
+
+            {/* Home */}
             <button
               onClick={() => router.push("/")}
-              className="inline-flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-gray-600"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-gray-200 bg-white px-6 py-3 text-base font-semibold text-gray-600 shadow transition hover:bg-gray-50"
             >
-              <Home size={16} />
-              回首頁
+              <Home size={18} />
+              完成測驗
             </button>
           </div>
         </div>
