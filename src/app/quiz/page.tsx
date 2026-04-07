@@ -157,6 +157,9 @@ function QuizContent() {
   const [showWrongDetails, setShowWrongDetails] = useState(false);
   const [newBadges, setNewBadges] = useState<{name: string; emoji: string}[]>([]);
   const [isWrongPracticeMode, setIsWrongPracticeMode] = useState(false);
+  const [monsterHit, setMonsterHit] = useState(false);
+  const [monsterHurt, setMonsterHurt] = useState(false);
+  const [showDamage, setShowDamage] = useState(false);
 
   const currentCategories = useMemo(
     () =>
@@ -244,7 +247,15 @@ function QuizContent() {
         setCorrectCount((c) => c + 1);
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 2500);
+        // Monster hit animation
+        setMonsterHit(true);
+        setShowDamage(true);
+        setTimeout(() => setMonsterHit(false), 600);
+        setTimeout(() => setShowDamage(false), 1000);
       } else {
+        // Monster laughs / player hurt
+        setMonsterHurt(true);
+        setTimeout(() => setMonsterHurt(false), 600);
         setWrongAnswers((prev) => [
           ...prev,
           { question: currentQuestion, userAnswer: currentQuestion.options[optionIndex] },
@@ -554,6 +565,31 @@ function QuizContent() {
     return (
       <div className="flex min-h-screen flex-col items-center bg-gradient-to-br from-purple-100 via-pink-50 to-amber-50 p-6 pt-12">
         <div className="w-full max-w-md space-y-4">
+          {/* Monster result */}
+          {correctCount >= answeredCount && answeredCount > 0 ? (
+            <div className="rounded-3xl bg-gradient-to-r from-slate-800 to-slate-900 p-6 text-center shadow-2xl">
+              <div className="mb-2 text-5xl rotate-90 opacity-40">
+                {["🐉","👾","🦖","👹","🐙","🧟","🦇","🐺"][quizQuestions.length % 8]}
+              </div>
+              <p className="text-lg font-black text-yellow-400">怪獸被打敗了！</p>
+              <p className="text-xs text-gray-400">全部答對，完美擊殺！</p>
+            </div>
+          ) : correctCount > 0 ? (
+            <div className="rounded-3xl bg-gradient-to-r from-slate-800 to-slate-900 p-4 text-center shadow-2xl">
+              <div className="flex items-center justify-center gap-3">
+                <span className="text-4xl">
+                  {["🐉","👾","🦖","👹","🐙","🧟","🦇","🐺"][quizQuestions.length % 8]}
+                </span>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-orange-400">
+                    怪獸還剩 {answeredCount - correctCount} 滴血！
+                  </p>
+                  <p className="text-xs text-gray-400">再加練就能打倒牠</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {/* Score card */}
           <div className="rounded-3xl bg-white p-8 text-center shadow-2xl">
             <div className="mb-4 text-6xl">{emoji}</div>
@@ -709,6 +745,84 @@ function QuizContent() {
       </header>
 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6">
+        {/* Monster Battle */}
+        {(() => {
+          const monsterHp = Math.max(quizQuestions.length - correctCount, 0);
+          const maxHp = quizQuestions.length;
+          const hpPercent = maxHp > 0 ? (monsterHp / maxHp) * 100 : 100;
+          const monsterDead = monsterHp === 0 && quizFinished;
+
+          // Rotate monsters based on quiz session
+          const monsters = ["🐉", "👾", "🦖", "👹", "🐙", "🧟", "🦇", "🐺"];
+          const monsterEmoji = monsters[quizQuestions.length % monsters.length];
+
+          return (
+            <div className="mb-4 rounded-3xl bg-gradient-to-r from-slate-800 to-slate-900 p-4 shadow-lg">
+              <div className="flex items-center gap-4">
+                {/* Monster */}
+                <div className="relative">
+                  <div
+                    className={`text-5xl transition-transform duration-300 ${
+                      monsterHit ? "scale-75 -translate-x-2 opacity-60" : ""
+                    } ${monsterHurt ? "scale-110" : ""} ${monsterDead ? "rotate-90 opacity-30" : ""}`}
+                  >
+                    {monsterEmoji}
+                  </div>
+                  {/* Damage number */}
+                  {showDamage && (
+                    <div className="absolute -top-2 -right-2 animate-bounce text-lg font-black text-red-400">
+                      -1
+                    </div>
+                  )}
+                  {/* Monster laughs on wrong */}
+                  {monsterHurt && (
+                    <div className="absolute -top-2 -right-2 animate-bounce text-sm font-bold text-yellow-400">
+                      哈哈
+                    </div>
+                  )}
+                </div>
+
+                {/* HP bar */}
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-300">怪獸</span>
+                    <span className="text-xs font-mono text-gray-400">
+                      HP {monsterHp}/{maxHp}
+                    </span>
+                  </div>
+                  <div className="h-4 overflow-hidden rounded-full bg-gray-700">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        hpPercent > 50
+                          ? "bg-gradient-to-r from-green-500 to-green-400"
+                          : hpPercent > 20
+                            ? "bg-gradient-to-r from-yellow-500 to-yellow-400"
+                            : "bg-gradient-to-r from-red-600 to-red-400"
+                      }`}
+                      style={{ width: `${hpPercent}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500">
+                      {hpPercent > 50 ? "怪獸精神飽滿..." : hpPercent > 20 ? "怪獸搖搖欲墜！" : hpPercent > 0 ? "再一點就打倒了！" : "怪獸被打敗了！"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Player */}
+                <div className="text-center">
+                  <div className={`text-3xl ${monsterHurt ? "opacity-60" : ""}`}>
+                    {config.emoji}
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-medium text-gray-400">
+                    ATK: {correctCount}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="rounded-3xl bg-white p-6 shadow-lg">
           <div className="mb-3 flex items-center justify-between">
             <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
