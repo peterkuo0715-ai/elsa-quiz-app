@@ -7,9 +7,11 @@ import {
   RotateCcw,
   Sparkles,
   Star,
-  Filter,
   CheckCircle2,
   XCircle,
+  Play,
+  BookOpen,
+  Hash,
 } from "lucide-react";
 import questionsData from "./data.json";
 
@@ -33,7 +35,15 @@ const difficultyMap: Record<string, number> = {
 
 const allQuestions: Question[] = questionsData as Question[];
 const subjects = Array.from(new Set(allQuestions.map((q) => q.subject)));
-const categories = Array.from(new Set(allQuestions.map((q) => q.category)));
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function ConfettiEffect() {
   const [particles] = useState(() =>
@@ -70,8 +80,16 @@ function ConfettiEffect() {
   );
 }
 
+const QUESTION_COUNT_OPTIONS = [5, 10, 20] as const;
+
 export default function ElsaQuizPage() {
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  // --- Start screen state ---
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [selectedCount, setSelectedCount] = useState<number | "all">(5);
+
+  // --- Quiz state ---
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
@@ -81,17 +99,38 @@ export default function ElsaQuizPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
 
-  const filteredQuestions = useMemo(
+  const availableQuestions = useMemo(
     () =>
-      selectedCategory === "all"
+      selectedSubject === "all"
         ? allQuestions
-        : allQuestions.filter((q) => q.category === selectedCategory),
-    [selectedCategory]
+        : allQuestions.filter((q) => q.subject === selectedSubject),
+    [selectedSubject]
   );
 
-  const currentQuestion = filteredQuestions[currentIndex];
+  const handleStart = useCallback(() => {
+    const shuffled = shuffle(availableQuestions);
+    const count =
+      selectedCount === "all" ? shuffled.length : Math.min(selectedCount, shuffled.length);
+    setQuizQuestions(shuffled.slice(0, count));
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setShowHint(false);
+    setShowResult(false);
+    setCorrectCount(0);
+    setAnsweredCount(0);
+    setQuizFinished(false);
+    setQuizStarted(true);
+  }, [availableQuestions, selectedCount]);
 
-  const answerIndex = currentQuestion?.options.indexOf(currentQuestion.answer) ?? -1;
+  const handleBackToStart = useCallback(() => {
+    setQuizStarted(false);
+    setQuizFinished(false);
+  }, []);
+
+  const currentQuestion = quizQuestions[currentIndex];
+
+  const answerIndex =
+    currentQuestion?.options.indexOf(currentQuestion.answer) ?? -1;
   const isCorrect = selectedOption === answerIndex;
 
   const handleSelect = useCallback(
@@ -111,7 +150,7 @@ export default function ElsaQuizPage() {
   );
 
   const handleNext = useCallback(() => {
-    if (currentIndex + 1 >= filteredQuestions.length) {
+    if (currentIndex + 1 >= quizQuestions.length) {
       setQuizFinished(true);
       return;
     }
@@ -119,28 +158,7 @@ export default function ElsaQuizPage() {
     setSelectedOption(null);
     setShowHint(false);
     setShowResult(false);
-  }, [currentIndex, filteredQuestions.length]);
-
-  const handleReset = useCallback(() => {
-    setCurrentIndex(0);
-    setSelectedOption(null);
-    setShowHint(false);
-    setShowResult(false);
-    setCorrectCount(0);
-    setAnsweredCount(0);
-    setQuizFinished(false);
-  }, []);
-
-  const handleCategoryChange = useCallback((cat: string) => {
-    setSelectedCategory(cat);
-    setCurrentIndex(0);
-    setSelectedOption(null);
-    setShowHint(false);
-    setShowResult(false);
-    setCorrectCount(0);
-    setAnsweredCount(0);
-    setQuizFinished(false);
-  }, []);
+  }, [currentIndex, quizQuestions.length]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -153,12 +171,113 @@ export default function ElsaQuizPage() {
   }, [showResult, quizFinished, handleNext]);
 
   const progress =
-    filteredQuestions.length > 0
-      ? ((currentIndex + (showResult ? 1 : 0)) / filteredQuestions.length) * 100
+    quizQuestions.length > 0
+      ? ((currentIndex + (showResult ? 1 : 0)) / quizQuestions.length) * 100
       : 0;
   const accuracy =
     answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0;
 
+  // ==================== START SCREEN ====================
+  if (!quizStarted) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-amber-50 p-6">
+        <div className="w-full max-w-md space-y-6">
+          {/* Title */}
+          <div className="text-center">
+            <Sparkles className="mx-auto mb-3 text-purple-500" size={40} />
+            <h1 className="text-3xl font-bold text-purple-700">
+              Elsa 的刷題樂園
+            </h1>
+            <p className="mt-2 text-gray-500">選擇科目和題數，開始練習吧！</p>
+          </div>
+
+          {/* Subject selection */}
+          <div className="rounded-3xl bg-white p-6 shadow-lg">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <BookOpen size={16} />
+              選擇科目
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedSubject("all")}
+                className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+                  selectedSubject === "all"
+                    ? "bg-purple-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-600 hover:bg-purple-50"
+                }`}
+              >
+                全部
+              </button>
+              {subjects.map((sub) => (
+                <button
+                  key={sub}
+                  onClick={() => setSelectedSubject(sub)}
+                  className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+                    selectedSubject === sub
+                      ? "bg-purple-500 text-white shadow-md"
+                      : "bg-gray-100 text-gray-600 hover:bg-purple-50"
+                  }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-400">
+              共 {availableQuestions.length} 題可用
+            </p>
+          </div>
+
+          {/* Question count */}
+          <div className="rounded-3xl bg-white p-6 shadow-lg">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Hash size={16} />
+              要練習幾題？
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {QUESTION_COUNT_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setSelectedCount(n)}
+                  disabled={availableQuestions.length < n}
+                  className={`rounded-full px-6 py-2.5 text-base font-semibold transition ${
+                    selectedCount === n
+                      ? "bg-pink-500 text-white shadow-md"
+                      : availableQuestions.length < n
+                        ? "bg-gray-50 text-gray-300 cursor-not-allowed"
+                        : "bg-gray-100 text-gray-600 hover:bg-pink-50"
+                  }`}
+                >
+                  {n} 題
+                </button>
+              ))}
+              <button
+                onClick={() => setSelectedCount("all")}
+                className={`rounded-full px-6 py-2.5 text-base font-semibold transition ${
+                  selectedCount === "all"
+                    ? "bg-pink-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-600 hover:bg-pink-50"
+                }`}
+              >
+                全部
+              </button>
+            </div>
+          </div>
+
+          {/* Start button */}
+          <button
+            onClick={handleStart}
+            disabled={availableQuestions.length === 0}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 py-4 text-xl font-bold text-white shadow-lg transition hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:hover:scale-100"
+          >
+            <Play size={24} />
+            開始練習！
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== FINISHED SCREEN ====================
   if (quizFinished) {
     const emoji = accuracy >= 80 ? "🏆" : accuracy >= 60 ? "⭐" : "💪";
     return (
@@ -169,12 +288,13 @@ export default function ElsaQuizPage() {
             練習完成！
           </h2>
           <p className="mb-1 text-xl text-gray-600">
-            答對 <span className="font-bold text-green-600">{correctCount}</span>{" "}
-            / {answeredCount} 題
+            答對{" "}
+            <span className="font-bold text-green-600">{correctCount}</span> /{" "}
+            {answeredCount} 題
           </p>
           <p className="mb-6 text-lg text-gray-500">正確率：{accuracy}%</p>
           <button
-            onClick={handleReset}
+            onClick={handleBackToStart}
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-8 py-3 text-lg font-semibold text-white shadow-lg transition hover:scale-105 hover:shadow-xl"
           >
             <RotateCcw size={20} />
@@ -185,6 +305,7 @@ export default function ElsaQuizPage() {
     );
   }
 
+  // ==================== QUIZ SCREEN ====================
   if (!currentQuestion) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-amber-50 p-6">
@@ -227,7 +348,7 @@ export default function ElsaQuizPage() {
         <div className="mx-auto mt-2 max-w-2xl">
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span>
-              第 {currentIndex + 1} / {filteredQuestions.length} 題
+              第 {currentIndex + 1} / {quizQuestions.length} 題
             </span>
             <span>
               答對 {correctCount} / {answeredCount}
@@ -241,36 +362,6 @@ export default function ElsaQuizPage() {
           </div>
         </div>
       </header>
-
-      {/* Category filter */}
-      <div className="mx-auto w-full max-w-2xl px-4 pt-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          <Filter size={16} className="shrink-0 text-gray-400" />
-          <button
-            onClick={() => handleCategoryChange("all")}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              selectedCategory === "all"
-                ? "bg-purple-500 text-white shadow-md"
-                : "bg-white text-gray-600 hover:bg-purple-50"
-            }`}
-          >
-            全部
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => handleCategoryChange(cat)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                selectedCategory === cat
-                  ? "bg-purple-500 text-white shadow-md"
-                  : "bg-white text-gray-600 hover:bg-purple-50"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Main content */}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6">
@@ -359,7 +450,7 @@ export default function ElsaQuizPage() {
         {/* Hint content */}
         {showHint && !showResult && (
           <div className="mx-auto mt-3 w-full max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center text-base leading-relaxed text-amber-800">
-            💡 {currentQuestion.hint}
+            {currentQuestion.hint}
           </div>
         )}
 
@@ -375,7 +466,7 @@ export default function ElsaQuizPage() {
             <p
               className={`mb-2 text-lg font-bold ${isCorrect ? "text-green-600" : "text-red-600"}`}
             >
-              {isCorrect ? "🎉 答對了！太棒了！" : "😢 答錯了，沒關係！"}
+              {isCorrect ? "答對了！太棒了！" : "答錯了，沒關係！"}
             </p>
             <p className="text-base leading-relaxed text-gray-700">
               {currentQuestion.explanation}
@@ -389,7 +480,7 @@ export default function ElsaQuizPage() {
             onClick={handleNext}
             className="mx-auto mt-6 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-8 py-3 text-lg font-semibold text-white shadow-lg transition hover:scale-105 hover:shadow-xl"
           >
-            {currentIndex + 1 >= filteredQuestions.length
+            {currentIndex + 1 >= quizQuestions.length
               ? "查看成績"
               : "下一題"}
             <ChevronRight size={20} />
