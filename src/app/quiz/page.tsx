@@ -65,14 +65,15 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function saveSession(record: SessionRecord) {
-  const key = `elsa-quiz-history-${record.user}`;
+async function saveSession(record: Omit<SessionRecord, "date">) {
   try {
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
-    existing.push(record);
-    localStorage.setItem(key, JSON.stringify(existing));
+    await fetch("/api/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    });
   } catch {
-    // localStorage unavailable
+    // silently fail
   }
 }
 
@@ -240,7 +241,6 @@ function QuizContent() {
     if (quizFinished && !sessionSaved && answeredCount > 0) {
       const cats = Array.from(new Set(quizQuestions.map((q) => q.category)));
       saveSession({
-        date: new Date().toISOString(),
         user: userSlug,
         categories: cats,
         totalQuestions: answeredCount,

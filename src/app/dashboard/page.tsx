@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   BarChart3,
@@ -10,6 +10,8 @@ import {
   TrendingUp,
   Calendar,
   Trash2,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 type SessionRecord = {
@@ -26,18 +28,6 @@ const kids = [
   { slug: "ivan", label: "Ivan", emoji: "🦸‍♂️", color: "teal" },
 ];
 
-function getHistory(user: string): SessionRecord[] {
-  try {
-    return JSON.parse(localStorage.getItem(`elsa-quiz-history-${user}`) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function clearHistory(user: string) {
-  localStorage.removeItem(`elsa-quiz-history-${user}`);
-}
-
 function formatDate(iso: string) {
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
@@ -46,18 +36,31 @@ function formatDate(iso: string) {
 export default function DashboardPage() {
   const [histories, setHistories] = useState<Record<string, SessionRecord[]>>({});
   const [activeTab, setActiveTab] = useState("elsa");
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
     const h: Record<string, SessionRecord[]> = {};
     for (const kid of kids) {
-      h[kid.slug] = getHistory(kid.slug);
+      try {
+        const res = await fetch(`/api/history?user=${kid.slug}`);
+        h[kid.slug] = res.ok ? await res.json() : [];
+      } catch {
+        h[kid.slug] = [];
+      }
     }
     setHistories(h);
+    setLoading(false);
   }, []);
 
-  const handleClear = (user: string) => {
-    if (confirm(`確定要清除 ${user === "elsa" ? "Elsa" : "Ivan"} 的所有紀錄嗎？`)) {
-      clearHistory(user);
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const handleClear = async (user: string) => {
+    const label = user === "elsa" ? "Elsa" : "Ivan";
+    if (confirm(`確定要清除 ${label} 的所有紀錄嗎？`)) {
+      await fetch(`/api/history?user=${user}`, { method: "DELETE" });
       setHistories((prev) => ({ ...prev, [user]: [] }));
     }
   };
@@ -68,12 +71,10 @@ export default function DashboardPage() {
   const totalCorrect = records.reduce((s, r) => s + r.correctCount, 0);
   const overallAccuracy = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
 
-  // Category breakdown
   const catStats: Record<string, { total: number; correct: number }> = {};
   for (const r of records) {
     for (const cat of r.categories) {
       if (!catStats[cat]) catStats[cat] = { total: 0, correct: 0 };
-      // Approximate: distribute evenly among categories for each session
       const perCat = r.totalQuestions / r.categories.length;
       const correctPerCat = r.correctCount / r.categories.length;
       catStats[cat].total += perCat;
@@ -90,13 +91,22 @@ export default function DashboardPage() {
             <BarChart3 className="text-amber-600" size={28} />
             <h1 className="text-2xl font-bold text-amber-800">成績總覽</h1>
           </div>
-          <Link
-            href="/"
-            className="flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm text-gray-500 shadow hover:text-gray-700"
-          >
-            <Home size={14} />
-            首頁
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchAll}
+              disabled={loading}
+              className="flex items-center gap-1 rounded-full bg-white px-3 py-2 text-sm text-gray-500 shadow hover:text-gray-700"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            </button>
+            <Link
+              href="/"
+              className="flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm text-gray-500 shadow hover:text-gray-700"
+            >
+              <Home size={14} />
+              首頁
+            </Link>
+          </div>
         </div>
 
         {/* Tab switcher */}
@@ -119,7 +129,11 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {records.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center rounded-3xl bg-white p-12 shadow">
+            <Loader2 size={32} className="animate-spin text-amber-400" />
+          </div>
+        ) : records.length === 0 ? (
           <div className="rounded-3xl bg-white p-8 text-center shadow">
             <p className="text-lg text-gray-400">{activeKid.label} 還沒有練習紀錄</p>
             <p className="mt-2 text-sm text-gray-300">開始刷題後成績就會出現在這裡</p>
@@ -185,9 +199,7 @@ export default function DashboardPage() {
 
             {/* Recent sessions */}
             <div className="mb-6 rounded-3xl bg-white p-5 shadow">
-              <h3 className="mb-3 text-sm font-semibold text-gray-700">
-                最近練習紀錄
-              </h3>
+              <h3 className="mb-3 text-sm font-semibold text-gray-700">最近練習紀錄</h3>
               <div className="space-y-2">
                 {[...records]
                   .reverse()
