@@ -41,9 +41,8 @@ type SessionRecord = {
 };
 
 const difficultyMap: Record<string, number> = {
-  Easy: 1,
-  Medium: 2,
-  Hard: 3,
+  "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+  Easy: 2, Medium: 3, Hard: 4,
 };
 
 const allQuestions: Question[] = questionsData as Question[];
