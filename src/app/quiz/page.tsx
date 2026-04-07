@@ -54,14 +54,17 @@ const difficultyMap: Record<string, number> = {
   Easy: 2, Medium: 3, Hard: 4,
 };
 
-const allQuestions: Question[] = questionsData as Question[];
-const subjects = Array.from(new Set(allQuestions.map((q) => q.subject)));
+const staticQuestions: Question[] = questionsData as Question[];
 
-const subjectCategoriesMap: Record<string, string[]> = {};
-for (const sub of subjects) {
-  subjectCategoriesMap[sub] = Array.from(
-    new Set(allQuestions.filter((q) => q.subject === sub).map((q) => q.category))
-  );
+function buildSubjectMap(questions: Question[]) {
+  const subjects = Array.from(new Set(questions.map((q) => q.subject)));
+  const map: Record<string, string[]> = {};
+  for (const sub of subjects) {
+    map[sub] = Array.from(
+      new Set(questions.filter((q) => q.subject === sub).map((q) => q.category))
+    );
+  }
+  return { subjects, map };
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -133,12 +136,40 @@ function QuizContent() {
   const userSlug = searchParams.get("user") || "elsa";
   const config = userConfig[userSlug] ?? userConfig.elsa;
 
+  // --- All questions (static + imported from KV) ---
+  const [allQuestions, setAllQuestions] = useState<Question[]>(staticQuestions);
+
+  useEffect(() => {
+    fetch("/api/import")
+      .then((r) => r.json())
+      .then((imported: Question[]) => {
+        if (imported && imported.length > 0) {
+          const existingIds = new Set(staticQuestions.map((q) => q.id));
+          const newOnes = imported.filter((q) => !existingIds.has(q.id));
+          setAllQuestions([...staticQuestions, ...newOnes]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const { subjects, map: subjectCategoriesMap } = useMemo(
+    () => buildSubjectMap(allQuestions),
+    [allQuestions]
+  );
+
   // --- Start screen state ---
   const [quizStarted, setQuizStarted] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
-    () => new Set(allQuestions.map((q) => q.category))
+    () => new Set(staticQuestions.map((q) => q.category))
   );
+
+  // Update categories when allQuestions changes (imported loaded)
+  useEffect(() => {
+    if (!quizStarted) {
+      setSelectedCategories(new Set(allQuestions.map((q) => q.category)));
+    }
+  }, [allQuestions, quizStarted]);
   const [selectedCount, setSelectedCount] = useState<number | "all">(10);
 
   // --- Quiz state ---
@@ -176,7 +207,7 @@ function QuizContent() {
     } else {
       setSelectedCategories(new Set(subjectCategoriesMap[sub] ?? []));
     }
-  }, []);
+  }, [allQuestions, subjectCategoriesMap]);
 
   const toggleCategory = useCallback((cat: string) => {
     setSelectedCategories((prev) => {
