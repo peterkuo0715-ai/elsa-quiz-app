@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Loader2,
   Flame,
+  Database,
 } from "lucide-react";
 
 type BadgeDef = { id: string; name: string; emoji: string; description: string };
@@ -103,6 +104,13 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-amber-800">成績總覽</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/admin"
+              className="flex items-center gap-1 rounded-full bg-white px-3 py-2 text-sm text-gray-500 shadow hover:text-blue-600"
+            >
+              <Database size={14} />
+              匯入題目
+            </Link>
             <button
               onClick={fetchAll}
               disabled={loading}

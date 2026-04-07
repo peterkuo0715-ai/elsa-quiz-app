@@ -873,14 +873,14 @@ function QuizContent() {
           <div className="space-y-3">
             {currentQuestion.options.map((opt, idx) => {
               let optionStyle =
-                "border-2 border-gray-200 bg-gray-50 hover:border-purple-300 hover:bg-purple-50";
+                "border-2 border-gray-200 bg-white text-gray-800 hover:border-purple-400 hover:bg-purple-50";
               if (showResult) {
                 if (idx === answerIndex) {
-                  optionStyle = "border-2 border-green-400 bg-green-50 ring-2 ring-green-200";
+                  optionStyle = "border-2 border-green-400 bg-green-50 ring-2 ring-green-200 text-green-800 font-semibold";
                 } else if (idx === selectedOption && !isCorrect) {
-                  optionStyle = "border-2 border-red-400 bg-red-50 ring-2 ring-red-200";
+                  optionStyle = "border-2 border-red-400 bg-red-50 ring-2 ring-red-200 text-red-800";
                 } else {
-                  optionStyle = "border-2 border-gray-100 bg-gray-50 opacity-50";
+                  optionStyle = "border-2 border-gray-100 bg-gray-50 text-gray-400";
                 }
               }
               return (
