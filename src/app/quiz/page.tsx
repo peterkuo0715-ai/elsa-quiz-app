@@ -155,6 +155,8 @@ function QuizContent() {
   const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
   const [showWrongDetails, setShowWrongDetails] = useState(false);
+  const [newBadges, setNewBadges] = useState<{name: string; emoji: string}[]>([]);
+  const [isWrongPracticeMode, setIsWrongPracticeMode] = useState(false);
 
   const currentCategories = useMemo(
     () =>
@@ -293,6 +295,7 @@ function QuizContent() {
       alert("這些單元沒有更多新題目了！");
       return;
     }
+    setIsWrongPracticeMode(true);
     startAdaptiveRound(picked);
   }, [wrongAnswers, doneIds, startAdaptiveRound]);
 
@@ -320,10 +323,11 @@ function QuizContent() {
     startAdaptiveRound(picked);
   }, [wrongAnswers, doneIds, quizQuestions, startAdaptiveRound]);
 
-  // Save session when quiz finishes
+  // Save session, wrong-book, and check badges when quiz finishes
   useEffect(() => {
     if (quizFinished && !sessionSaved && answeredCount > 0) {
       const cats = Array.from(new Set(quizQuestions.map((q) => q.category)));
+      // Save history
       saveSession({
         user: userSlug,
         categories: cats,
@@ -331,9 +335,61 @@ function QuizContent() {
         correctCount,
         accuracy: Math.round((correctCount / answeredCount) * 100),
       });
+
+      // Save wrong answers to wrong-book + remove correct ones
+      const wrongToAdd = wrongAnswers.map((w) => ({
+        questionId: w.question.id,
+        category: w.question.category,
+        difficulty: w.question.difficulty,
+        date: new Date().toISOString(),
+        userAnswer: w.userAnswer,
+        question: w.question.question,
+        correctAnswer: w.question.answer,
+        explanation: w.question.explanation,
+      }));
+      const correctIds = quizQuestions
+        .filter((q) => !wrongAnswers.some((w) => w.question.id === q.id))
+        .map((q) => q.id);
+
+      fetch("/api/wrong-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: userSlug, add: wrongToAdd, remove: correctIds }),
+      }).catch(() => {});
+
+      // Check badges
+      const olympiadCount = quizQuestions.filter((q) => q.subject === "奧數邏輯").length;
+      const hasFiveStar = quizQuestions.some((q) => q.difficulty === "5");
+      fetch("/api/badges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user: userSlug,
+          questionsAnswered: answeredCount,
+          olympiadAnswered: olympiadCount,
+          isPerfect: wrongAnswers.length === 0,
+          isWrongPractice: isWrongPracticeMode,
+          hasFiveStar,
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.newBadges && data.newBadges.length > 0) {
+            const allBadges = data.allBadges || [];
+            setNewBadges(
+              data.newBadges.map((id: string) => {
+                const b = allBadges.find((x: { id: string }) => x.id === id);
+                return b ? { name: b.name, emoji: b.emoji } : { name: id, emoji: "🎖️" };
+              })
+            );
+          }
+        })
+        .catch(() => {});
+
       setSessionSaved(true);
+      setIsWrongPracticeMode(false);
     }
-  }, [quizFinished, sessionSaved, answeredCount, correctCount, quizQuestions, userSlug]);
+  }, [quizFinished, sessionSaved, answeredCount, correctCount, quizQuestions, userSlug, wrongAnswers, isWrongPracticeMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -506,6 +562,21 @@ function QuizContent() {
               答對 <span className="font-bold text-green-600">{correctCount}</span> / {answeredCount} 題
             </p>
             <p className="text-lg text-gray-500">正確率：{accuracy}%</p>
+
+            {/* New badges */}
+            {newBadges.length > 0 && (
+              <div className="mt-4 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+                <p className="mb-2 text-sm font-bold text-amber-700">獲得新徽章！</p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {newBadges.map((b, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      <span className="text-3xl animate-bounce">{b.emoji}</span>
+                      <span className="text-xs font-medium text-amber-800">{b.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}

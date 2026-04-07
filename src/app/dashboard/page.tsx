@@ -12,7 +12,10 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  Flame,
 } from "lucide-react";
+
+type BadgeDef = { id: string; name: string; emoji: string; description: string };
 
 type SessionRecord = {
   date: string;
@@ -35,21 +38,29 @@ function formatDate(iso: string) {
 
 export default function DashboardPage() {
   const [histories, setHistories] = useState<Record<string, SessionRecord[]>>({});
+  const [badgeData, setBadgeData] = useState<Record<string, { badges: string[]; stats: { streakDays: number; totalQuestions: number }; allBadges: BadgeDef[] }>>({});
   const [activeTab, setActiveTab] = useState("elsa");
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const h: Record<string, SessionRecord[]> = {};
+    const b: Record<string, { badges: string[]; stats: { streakDays: number; totalQuestions: number }; allBadges: BadgeDef[] }> = {};
     for (const kid of kids) {
       try {
-        const res = await fetch(`/api/history?user=${kid.slug}`);
-        h[kid.slug] = res.ok ? await res.json() : [];
+        const [histRes, badgeRes] = await Promise.all([
+          fetch(`/api/history?user=${kid.slug}`),
+          fetch(`/api/badges?user=${kid.slug}`),
+        ]);
+        h[kid.slug] = histRes.ok ? await histRes.json() : [];
+        b[kid.slug] = badgeRes.ok ? await badgeRes.json() : { badges: [], stats: { streakDays: 0, totalQuestions: 0 }, allBadges: [] };
       } catch {
         h[kid.slug] = [];
+        b[kid.slug] = { badges: [], stats: { streakDays: 0, totalQuestions: 0 }, allBadges: [] };
       }
     }
     setHistories(h);
+    setBadgeData(b);
     setLoading(false);
   }, []);
 
@@ -160,6 +171,38 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400">總正確率</p>
               </div>
             </div>
+
+            {/* Streak + Badges */}
+            {badgeData[activeTab] && (
+              <div className="mb-6 rounded-3xl bg-white p-5 shadow">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-700">成就徽章</h3>
+                  {(badgeData[activeTab]?.stats?.streakDays ?? 0) > 0 && (
+                    <div className="flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1">
+                      <Flame size={14} className="text-orange-500" />
+                      <span className="text-xs font-bold text-orange-600">
+                        連續 {badgeData[activeTab].stats.streakDays} 天
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(badgeData[activeTab]?.allBadges ?? []).map((b) => {
+                    const earned = (badgeData[activeTab]?.badges ?? []).includes(b.id);
+                    return (
+                      <div
+                        key={b.id}
+                        className={`flex flex-col items-center gap-0.5 ${earned ? "" : "opacity-25 grayscale"}`}
+                        title={b.description}
+                      >
+                        <span className="text-2xl">{b.emoji}</span>
+                        <span className="text-[10px] text-gray-500">{b.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Category breakdown */}
             {Object.keys(catStats).length > 0 && (
