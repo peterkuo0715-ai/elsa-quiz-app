@@ -12,6 +12,8 @@ import {
   Play,
   BookOpen,
   Hash,
+  Check,
+  Layers,
 } from "lucide-react";
 import questionsData from "./data.json";
 
@@ -35,6 +37,14 @@ const difficultyMap: Record<string, number> = {
 
 const allQuestions: Question[] = questionsData as Question[];
 const subjects = Array.from(new Set(allQuestions.map((q) => q.subject)));
+
+// Build a map: subject -> categories[]
+const subjectCategoriesMap: Record<string, string[]> = {};
+for (const sub of subjects) {
+  subjectCategoriesMap[sub] = Array.from(
+    new Set(allQuestions.filter((q) => q.subject === sub).map((q) => q.category))
+  );
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -86,7 +96,10 @@ export default function ElsaQuizPage() {
   // --- Start screen state ---
   const [quizStarted, setQuizStarted] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
-  const [selectedCount, setSelectedCount] = useState<number | "all">(5);
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
+    () => new Set(allQuestions.map((q) => q.category))
+  );
+  const [selectedCount, setSelectedCount] = useState<number | "all">(10);
 
   // --- Quiz state ---
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
@@ -99,12 +112,53 @@ export default function ElsaQuizPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
 
-  const availableQuestions = useMemo(
+  // Categories available for current subject
+  const currentCategories = useMemo(
     () =>
       selectedSubject === "all"
-        ? allQuestions
-        : allQuestions.filter((q) => q.subject === selectedSubject),
+        ? Array.from(new Set(allQuestions.map((q) => q.category)))
+        : subjectCategoriesMap[selectedSubject] ?? [],
     [selectedSubject]
+  );
+
+  // When subject changes, select all its categories
+  const handleSubjectChange = useCallback(
+    (sub: string) => {
+      setSelectedSubject(sub);
+      if (sub === "all") {
+        setSelectedCategories(new Set(allQuestions.map((q) => q.category)));
+      } else {
+        setSelectedCategories(new Set(subjectCategoriesMap[sub] ?? []));
+      }
+    },
+    []
+  );
+
+  // Toggle a single category
+  const toggleCategory = useCallback((cat: string) => {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) {
+        next.delete(cat);
+      } else {
+        next.add(cat);
+      }
+      return next;
+    });
+  }, []);
+
+  // Select all / deselect all categories
+  const toggleAllCategories = useCallback(() => {
+    if (selectedCategories.size === currentCategories.length) {
+      setSelectedCategories(new Set());
+    } else {
+      setSelectedCategories(new Set(currentCategories));
+    }
+  }, [selectedCategories.size, currentCategories]);
+
+  const availableQuestions = useMemo(
+    () => allQuestions.filter((q) => selectedCategories.has(q.category)),
+    [selectedCategories]
   );
 
   const handleStart = useCallback(() => {
@@ -199,7 +253,7 @@ export default function ElsaQuizPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => setSelectedSubject("all")}
+                onClick={() => handleSubjectChange("all")}
                 className={`rounded-full px-5 py-2 text-sm font-medium transition ${
                   selectedSubject === "all"
                     ? "bg-purple-500 text-white shadow-md"
@@ -211,7 +265,7 @@ export default function ElsaQuizPage() {
               {subjects.map((sub) => (
                 <button
                   key={sub}
-                  onClick={() => setSelectedSubject(sub)}
+                  onClick={() => handleSubjectChange(sub)}
                   className={`rounded-full px-5 py-2 text-sm font-medium transition ${
                     selectedSubject === sub
                       ? "bg-purple-500 text-white shadow-md"
@@ -222,8 +276,47 @@ export default function ElsaQuizPage() {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-gray-400">
-              共 {availableQuestions.length} 題可用
+          </div>
+
+          {/* Category multi-select */}
+          <div className="rounded-3xl bg-white p-6 shadow-lg">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Layers size={16} />
+                選擇單元（可多選）
+              </div>
+              <button
+                onClick={toggleAllCategories}
+                className="text-xs font-medium text-purple-500 hover:text-purple-700"
+              >
+                {selectedCategories.size === currentCategories.length
+                  ? "取消全選"
+                  : "全選"}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {currentCategories.map((cat) => {
+                const isSelected = selectedCategories.has(cat);
+                const count = allQuestions.filter((q) => q.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCategory(cat)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${
+                      isSelected
+                        ? "bg-purple-100 text-purple-700 ring-2 ring-purple-300"
+                        : "bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                    }`}
+                  >
+                    {isSelected && <Check size={14} className="text-purple-500" />}
+                    {cat}
+                    <span className="text-xs opacity-60">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-gray-400">
+              已選 {availableQuestions.length} 題
             </p>
           </div>
 
