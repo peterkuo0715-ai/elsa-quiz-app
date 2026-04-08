@@ -22,6 +22,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import CatAvatar from "../components/CatAvatar";
+import MathFigure, { type FigureData } from "../components/MathFigure";
 import questionsData from "./data.json";
 
 type Question = {
@@ -34,6 +35,7 @@ type Question = {
   answer: string;
   hint: string;
   explanation: string;
+  figure?: FigureData;
 };
 
 type SessionRecord = {
@@ -1018,9 +1020,11 @@ function QuizContent() {
             </div>
           </div>
 
-          <p className="mb-6 text-xl font-semibold leading-relaxed text-gray-800">
+          <p className="mb-4 text-xl font-semibold leading-relaxed text-gray-800">
             {currentQuestion.question}
           </p>
+
+          {currentQuestion.figure && <MathFigure figure={currentQuestion.figure} />}
 
           <div className="space-y-3">
             {currentQuestion.options.map((opt, idx) => {
