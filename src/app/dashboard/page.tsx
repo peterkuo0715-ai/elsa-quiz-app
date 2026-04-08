@@ -28,7 +28,7 @@ type SessionRecord = {
 };
 
 const kids = [
-  { slug: "elsa", label: "Elsa", emoji: "👸", color: "purple" },
+  { slug: "elsa", label: "Elsa", emoji: "🐱", color: "purple" },
   { slug: "ivan", label: "Ivan", emoji: "🦸‍♂️", color: "teal" },
 ];
 

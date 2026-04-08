@@ -123,10 +123,134 @@ function ConfettiEffect() {
   );
 }
 
+function VictoryScreen({ monsterEmoji, playerEmoji, onDone }: { monsterEmoji: string; playerEmoji: string; onDone: () => void }) {
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setPhase(1), 500),   // sword slash
+      setTimeout(() => setPhase(2), 1200),  // monster explodes
+      setTimeout(() => setPhase(3), 2200),  // victory text
+      setTimeout(() => setPhase(4), 3500),  // show button
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90" onClick={phase >= 4 ? onDone : undefined}>
+      {/* Stars background */}
+      <div className="absolute inset-0 overflow-hidden">
+        {Array.from({ length: 40 }, (_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full bg-yellow-300 animate-pulse"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: Math.random() * 4 + 1,
+              height: Math.random() * 4 + 1,
+              animationDelay: `${Math.random() * 2}s`,
+              animationDuration: `${Math.random() * 2 + 1}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Battle scene */}
+      <div className="relative flex items-center gap-8 mb-8">
+        {/* Player */}
+        <div className={`text-7xl transition-all duration-500 ${
+          phase >= 1 ? "translate-x-12 scale-125" : ""
+        }`}>
+          {playerEmoji}
+        </div>
+
+        {/* Slash effect */}
+        {phase >= 1 && phase < 3 && (
+          <div className="absolute left-1/2 -translate-x-1/2 text-6xl animate-ping">
+            ⚔️
+          </div>
+        )}
+
+        {/* Monster */}
+        <div className={`text-7xl transition-all duration-700 ${
+          phase === 0 ? "" :
+          phase === 1 ? "scale-110 -translate-x-4" :
+          phase >= 2 ? "scale-0 rotate-[720deg] opacity-0" : ""
+        }`}>
+          {monsterEmoji}
+        </div>
+
+        {/* Explosion */}
+        {phase === 2 && (
+          <div className="absolute right-0 flex gap-2">
+            {["💥", "✨", "⭐", "💫", "🔥"].map((e, i) => (
+              <span
+                key={i}
+                className="text-4xl animate-bounce"
+                style={{ animationDelay: `${i * 0.1}s` }}
+              >
+                {e}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Victory text */}
+      {phase >= 3 && (
+        <div className="text-center animate-bounce">
+          <p className="text-5xl font-black text-yellow-400 drop-shadow-lg mb-2"
+             style={{ textShadow: "0 0 20px rgba(250,204,21,0.5), 0 0 40px rgba(250,204,21,0.3)" }}>
+            VICTORY!
+          </p>
+          <p className="text-2xl font-bold text-white mb-1">
+            怪獸被消滅了！
+          </p>
+          <p className="text-lg text-yellow-200">
+            全部答對 ⭐ 完美擊殺！
+          </p>
+        </div>
+      )}
+
+      {/* Floating emojis */}
+      {phase >= 2 && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {Array.from({ length: 20 }, (_, i) => (
+            <div
+              key={i}
+              className="absolute animate-confetti text-2xl"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: "-20px",
+                animationDelay: `${Math.random() * 1.5}s`,
+                animationDuration: `${Math.random() * 2 + 2}s`,
+              }}
+            >
+              {["⭐", "🌟", "✨", "💎", "🎉", "🏆"][Math.floor(Math.random() * 6)]}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Continue button */}
+      {phase >= 4 && (
+        <button
+          onClick={onDone}
+          className="mt-8 rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 px-10 py-4 text-xl font-black text-white shadow-2xl transition hover:scale-110 animate-pulse"
+          style={{ boxShadow: "0 0 30px rgba(250,204,21,0.4)" }}
+        >
+          繼續 →
+        </button>
+      )}
+    </div>
+  );
+}
+
 const QUESTION_COUNT_OPTIONS = [5, 10, 20] as const;
 
 const userConfig: Record<string, { label: string; emoji: string; accent: string }> = {
-  elsa: { label: "Elsa", emoji: "👸", accent: "purple" },
+  elsa: { label: "Elsa", emoji: "🐱", accent: "purple" },
   ivan: { label: "Ivan", emoji: "🦸‍♂️", accent: "teal" },
 };
 
@@ -191,6 +315,7 @@ function QuizContent() {
   const [monsterHit, setMonsterHit] = useState(false);
   const [monsterHurt, setMonsterHurt] = useState(false);
   const [showDamage, setShowDamage] = useState(false);
+  const [showVictory, setShowVictory] = useState(false);
 
   const currentCategories = useMemo(
     () =>
@@ -364,6 +489,13 @@ function QuizContent() {
     }
     startAdaptiveRound(picked);
   }, [wrongAnswers, doneIds, quizQuestions, startAdaptiveRound]);
+
+  // Show victory screen if perfect score
+  useEffect(() => {
+    if (quizFinished && wrongAnswers.length === 0 && answeredCount > 0) {
+      setShowVictory(true);
+    }
+  }, [quizFinished, wrongAnswers.length, answeredCount]);
 
   // Save session, wrong-book, and check badges when quiz finishes
   useEffect(() => {
@@ -586,6 +718,20 @@ function QuizContent() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // ==================== VICTORY ANIMATION ====================
+  const monsterEmojis = ["🐉", "👾", "🦖", "👹", "🐙", "🧟", "🦇", "🐺"];
+  const currentMonsterEmoji = monsterEmojis[quizQuestions.length % monsterEmojis.length];
+
+  if (showVictory) {
+    return (
+      <VictoryScreen
+        monsterEmoji={currentMonsterEmoji}
+        playerEmoji={config.emoji}
+        onDone={() => setShowVictory(false)}
+      />
     );
   }
 

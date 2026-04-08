@@ -28,7 +28,7 @@ const users = [
   {
     name: "Elsa",
     slug: "elsa",
-    emoji: "👸",
+    emoji: "🐱",
     color: "from-purple-400 to-pink-400",
     bgHover: "hover:bg-purple-50",
     border: "border-purple-200",
