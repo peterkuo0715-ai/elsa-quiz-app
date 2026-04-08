@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import CatAvatar from "../components/CatAvatar";
 import questionsData from "./data.json";
 
 type Question = {
@@ -123,7 +124,7 @@ function ConfettiEffect() {
   );
 }
 
-function VictoryScreen({ monsterEmoji, playerEmoji, onDone }: { monsterEmoji: string; playerEmoji: string; onDone: () => void }) {
+function VictoryScreen({ monsterEmoji, playerAvatar, onDone }: { monsterEmoji: string; playerAvatar: React.ReactNode; onDone: () => void }) {
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -159,10 +160,10 @@ function VictoryScreen({ monsterEmoji, playerEmoji, onDone }: { monsterEmoji: st
       {/* Battle scene */}
       <div className="relative flex items-center gap-8 mb-8">
         {/* Player */}
-        <div className={`text-7xl transition-all duration-500 ${
+        <div className={`transition-all duration-500 ${
           phase >= 1 ? "translate-x-12 scale-125" : ""
         }`}>
-          {playerEmoji}
+          {playerAvatar}
         </div>
 
         {/* Slash effect */}
@@ -253,6 +254,11 @@ const userConfig: Record<string, { label: string; emoji: string; accent: string 
   elsa: { label: "Elsa", emoji: "🐱", accent: "purple" },
   ivan: { label: "Ivan", emoji: "🦸‍♂️", accent: "teal" },
 };
+
+function UserAvatar({ slug, size = 32 }: { slug: string; size?: number }) {
+  if (slug === "elsa") return <CatAvatar size={size} />;
+  return <span style={{ fontSize: size * 0.7 }}>{userConfig[slug]?.emoji ?? "👤"}</span>;
+}
 
 function QuizContent() {
   const searchParams = useSearchParams();
@@ -586,7 +592,7 @@ function QuizContent() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-amber-50 p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="text-center">
-            <div className="mb-2 text-4xl">{config.emoji}</div>
+            <div className="mb-2"><UserAvatar slug={userSlug} size={56} /></div>
             <h1 className="text-3xl font-bold text-purple-700">
               {config.label} 的刷題樂園
             </h1>
@@ -729,7 +735,7 @@ function QuizContent() {
     return (
       <VictoryScreen
         monsterEmoji={currentMonsterEmoji}
-        playerEmoji={config.emoji}
+        playerAvatar={<UserAvatar slug={userSlug} size={72} />}
         onDone={() => setShowVictory(false)}
       />
     );
@@ -895,7 +901,7 @@ function QuizContent() {
       <header className="sticky top-0 z-10 border-b border-purple-100 bg-white/80 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-lg">{config.emoji}</span>
+            <UserAvatar slug={userSlug} size={28} />
             <h1 className="text-lg font-bold text-purple-700">
               {config.label} 的刷題樂園
             </h1>
@@ -988,8 +994,8 @@ function QuizContent() {
 
                 {/* Player */}
                 <div className="text-center">
-                  <div className={`text-3xl ${monsterHurt ? "opacity-60" : ""}`}>
-                    {config.emoji}
+                  <div className={`${monsterHurt ? "opacity-60" : ""}`}>
+                    <UserAvatar slug={userSlug} size={36} />
                   </div>
                   <div className="mt-0.5 text-[10px] font-medium text-gray-400">
                     ATK: {correctCount}

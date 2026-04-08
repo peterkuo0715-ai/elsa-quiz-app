@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import CatAvatar from "./components/CatAvatar";
 import {
   Sparkles,
   BarChart3,
@@ -118,7 +119,7 @@ export default function HomePage() {
                 className={`flex items-center gap-4 rounded-3xl border-2 ${u.border} bg-white p-5 shadow-lg transition hover:scale-[1.02] hover:shadow-xl ${u.bgHover}`}
               >
                 <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${u.color} text-3xl shadow-md`}>
-                  {u.emoji}
+                  {u.slug === "elsa" ? <CatAvatar size={48} /> : u.emoji}
                 </div>
                 <div className="flex-1">
                   <p className={`text-2xl font-bold ${u.textColor}`}>{u.name}</p>
